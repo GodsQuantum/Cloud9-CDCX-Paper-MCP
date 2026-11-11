@@ -56,8 +56,10 @@ jobs:
             -v "$PWD/tests:/contract:ro" \
             --entrypoint sh local/cloud9-cdcx-paper:test -c '
               set -e
-              actual="$(cdcx --version 2>&1 | head -1)"
-              echo "$actual" | grep -F "cdcx $OFFICIAL_VERSION"
+              # The native CLI may print first-run schema warnings before
+              # its version line in offline environments.
+              output="$(cdcx --version 2>&1)"
+              echo "$output" | grep -Fx "cdcx $OFFICIAL_VERSION"
               cdcx paper init --balance 50000 >/tmp/paper-init.log 2>&1 || { cat /tmp/paper-init.log; exit 1; }
               python /app/server.py >/tmp/mcp.log 2>&1 &
               pid=$!
