@@ -1,0 +1,75 @@
+{
+  "paper_balance": {
+    "properties": {},
+    "required": [],
+    "type": "object"
+  },
+  "paper_buy": {
+    "properties": {
+      "instrument": {
+        "title": "Instrument",
+        "type": "string"
+      },
+      "limit_price": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Limit Price"
+      },
+      "quantity": {
+        "title": "Quantity",
+        "type": "number"
+      }
+    },
+    "required": [
+      "instrument",
+      "quantity"
+    ],
+    "type": "object"
+  },
+  "paper_history": {
+    "properties": {},
+    "required": [],
+    "type": "object"
+  },
+  "paper_positions": {
+    "properties": {},
+    "required": [],
+    "type": "object"
+  },
+  "paper_sell": {
+    "properties": {
+      "instrument": {
+        "title": "Instrument",
+        "type": "string"
+      },
+      "limit_price": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Limit Price"
+      },
+      "quantity": {
+        "title": "Quantity",
+        "type": "number"
+      }
+    },
+    "required": [
+      "instrument",
+      "quantity"
+    ],
+    "type": "object"
+  }
+}

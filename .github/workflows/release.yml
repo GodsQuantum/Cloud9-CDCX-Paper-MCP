@@ -1,0 +1,103 @@
+name: Certified CDCX paper MCP GHCR release
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  schedule:
+    - cron: "16 5 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: cdcx-paper-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    outputs:
+      official_version: ${{ steps.official.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: official
+        name: Resolve most recent verified upstream GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="$(gh api repos/crypto-com/cdcx-cli/releases/latest --jq .tag_name)"
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "Official CDCX release: $tag"
+      - name: Public source privacy and contract gate
+        run: python3 tests/privacy.py
+      - uses: docker/setup-buildx-action@v3
+      - name: Build with verified upstream binary
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          pull: true
+          load: true
+          platforms: linux/amd64
+          tags: local/cloud9-cdcx-paper:test
+          build-args: |
+            CDCX_VERSION=${{ steps.official.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Real native CDCX paper simulation plus five-tool HTTP MCP security contract
+        shell: bash
+        env:
+          OFFICIAL_VERSION: ${{ steps.official.outputs.version }}
+        run: |
+          set -euo pipefail
+          docker run --rm --network none -e MCP_ALLOWED_HOSTS=paper-test:18767 \
+            -e OFFICIAL_VERSION="$OFFICIAL_VERSION" \
+            -v "$PWD/tests:/contract:ro" \
+            --entrypoint sh local/cloud9-cdcx-paper:test -c '
+              set -e
+              actual="$(cdcx --version 2>&1 | head -1)"
+              echo "$actual" | grep -F "cdcx $OFFICIAL_VERSION"
+              cdcx paper init --balance 50000 >/tmp/paper-init.log 2>&1 || { cat /tmp/paper-init.log; exit 1; }
+              python /app/server.py >/tmp/mcp.log 2>&1 &
+              pid=$!
+              sleep 4
+              python /contract/verify_tools.py || { tail -28 /tmp/mcp.log; exit 1; }
+              kill "$pid" 2>/dev/null || true
+              echo CDCX_PAPER_SOURCE_AND_HTTP_E2E_PASS
+            '
+  publish:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: metadata
+        with:
+          images: ghcr.io/godsquantum/cloud9-cdcx-paper-mcp
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=upstream-${{ needs.test.outputs.official_version }}
+            type=ref,event=tag
+            type=sha,prefix=sha-
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          pull: true
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: |
+            ${{ steps.metadata.outputs.labels }}
+            com.cloud9.upstream.version=${{ needs.test.outputs.official_version }}
+          build-args: |
+            CDCX_VERSION=${{ needs.test.outputs.official_version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

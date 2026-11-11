@@ -1,0 +1,21 @@
+name: cloud9-cdcx-paper
+services:
+  paper-mcp:
+    image: ghcr.io/godsquantum/cloud9-cdcx-paper-mcp:latest
+    pull_policy: always
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - paper-state:/home/cdcx
+    ports:
+      - "127.0.0.1:18767:18767"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket;socket.create_connection(('127.0.0.1',18767),timeout=2).close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  paper-state:
